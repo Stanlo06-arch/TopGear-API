@@ -1,24 +1,25 @@
-const router = require('express').Router();
+const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query } = require('../db');
-const { signUser, requireAuth } = require('../auth');
+const { signToken, authRequired } = require('../auth');
+
+const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { username, displayName, password } = req.body;
-    if (!username || !displayName || !password || password.length < 6) {
-      return res.status(400).json({ error: 'Benutzername, Name und Passwort (mind. 6 Zeichen) erforderlich' });
-    }
+    const { username, name, password } = req.body || {};
+    if (!username || !name || !password) return res.status(400).json({ error: 'username, name und password sind erforderlich' });
+    if (password.length < 6) return res.status(400).json({ error: 'Passwort muss mindestens 6 Zeichen haben' });
+    const existing = await query('SELECT id FROM members WHERE lower(username)=lower($1)', [username.trim()]);
+    if (existing.rowCount) return res.status(409).json({ error: 'Benutzername bereits vergeben' });
     const hash = await bcrypt.hash(password, 12);
-    const result = await query(`
-      INSERT INTO members (username, display_name, password_hash, rank, software_role)
-      VALUES ($1, $2, $3, 2, 'Mitglied')
-      RETURNING id, username, display_name, rank, software_role, online, created_at
-    `, [username.trim(), displayName.trim(), hash]);
+    const result = await query(
+      `INSERT INTO members (username, name, password_hash) VALUES ($1,$2,$3) RETURNING id, username, name, rank, software_role, online, created_at`,
+      [username.trim(), name.trim(), hash]
+    );
     const user = result.rows[0];
-    res.status(201).json({ user, token: signUser(user) });
+    res.status(201).json({ user, token: signToken(user) });
   } catch (err) {
-    if (err.code === '23505') return res.status(409).json({ error: 'Benutzername ist bereits vergeben' });
     console.error(err);
     res.status(500).json({ error: 'Registrierung fehlgeschlagen' });
   }
@@ -26,22 +27,24 @@ router.post('/register', async (req, res) => {
 
 router.post('/login', async (req, res) => {
   try {
-    const { username, password } = req.body;
-    const result = await query('SELECT * FROM members WHERE username = $1', [username?.trim()]);
-    if (!result.rowCount) return res.status(401).json({ error: 'Login-Daten falsch' });
-    const user = result.rows[0];
-    const ok = await bcrypt.compare(password || '', user.password_hash);
-    if (!ok) return res.status(401).json({ error: 'Login-Daten falsch' });
-    await query('UPDATE members SET online = true, updated_at = NOW() WHERE id = $1', [user.id]);
-    const safe = { id:user.id, username:user.username, display_name:user.display_name, rank:user.rank, software_role:user.software_role, online:true, created_at:user.created_at };
-    res.json({ user: safe, token: signUser(safe) });
+    const { username, password } = req.body || {};
+    if (!username || !password) return res.status(400).json({ error: 'Benutzername und Passwort erforderlich' });
+    const result = await query('SELECT * FROM members WHERE lower(username)=lower($1)', [username.trim()]);
+    if (!result.rowCount) return res.status(401).json({ error: 'Ungültige Zugangsdaten' });
+    const row = result.rows[0];
+    const ok = await bcrypt.compare(password, row.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Ungültige Zugangsdaten' });
+    await query('UPDATE members SET online=true WHERE id=$1', [row.id]);
+    const user = { id: row.id, username: row.username, name: row.name, rank: row.rank, software_role: row.software_role, online: true };
+    res.json({ user, token: signToken(user) });
   } catch (err) {
-    console.error(err); res.status(500).json({ error: 'Login fehlgeschlagen' });
+    console.error(err);
+    res.status(500).json({ error: 'Login fehlgeschlagen' });
   }
 });
 
-router.post('/logout', requireAuth, async (req, res) => {
-  await query('UPDATE members SET online = false, updated_at = NOW() WHERE id = $1', [req.user.id]);
+router.post('/logout', authRequired, async (req, res) => {
+  await query('UPDATE members SET online=false WHERE id=$1', [req.user.sub]);
   res.json({ ok: true });
 });
 
