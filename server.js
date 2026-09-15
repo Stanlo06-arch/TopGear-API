@@ -1,13 +1,20 @@
 const express = require('express');
 const cors = require('cors');
 const { initDb } = require('./db');
-const { requireAuth } = require('./auth');
+const { authRequired } = require('./auth');
 
 const app = express();
+
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
 
-app.get('/health', (req, res) => res.json({ ok: true, service: 'TopGear API', time: new Date().toISOString() }));
+app.get('/health', (req, res) => {
+  res.json({
+    ok: true,
+    service: 'TopGear API',
+    time: new Date().toISOString()
+  });
+});
 
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/members', require('./routes/members'));
@@ -17,7 +24,9 @@ app.use('/api/announcements', require('./routes/announcements'));
 app.use('/api/colors', require('./routes/colors'));
 app.use('/api/search', require('./routes/search'));
 
-app.get('/api/me', requireAuth, (req, res) => res.json(req.user));
+app.get('/api/me', authRequired, (req, res) => {
+  res.json(req.user);
+});
 
 const PORT = Number(process.env.PORT) || 3000;
 
