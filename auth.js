@@ -1,13 +1,15 @@
 const jwt = require('jsonwebtoken');
 
-const JWT_SECRET = process.env.JWT_SECRET || 'topgear-development-secret-change-this';
+const JWT_SECRET =
+  process.env.JWT_SECRET ||
+  'topgear-development-secret-change-this';
 
 function signToken(user) {
   return jwt.sign(
     {
       sub: user.id,
       username: user.username,
-      name: user.name,
+      display_name: user.display_name,
       rank: user.rank,
       software_role: user.software_role
     },
