@@ -16,7 +16,7 @@ app.get('/health', (req, res) => {
   });
 });
 
-app.use('/api/auth', require('./routes/authRoutes'));
+app.use('/api/auth', require('./routes/auth'));
 app.use('/api/members', require('./routes/members'));
 app.use('/api/orders', require('./routes/orders'));
 app.use('/api/appointments', require('./routes/appointments'));
@@ -41,6 +41,5 @@ initDb()
       'Datenbank-Initialisierung fehlgeschlagen:',
       err
     );
-
     process.exit(1);
   });
