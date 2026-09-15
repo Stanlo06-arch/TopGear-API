@@ -7,11 +7,11 @@ const router = express.Router();
 
 router.post('/register', async (req, res) => {
   try {
-    const { username, name, password } = req.body || {};
+    const { username, display_name, password } = req.body || {};
 
-    if (!username || !name || !password) {
+    if (!username || !display_name || !password) {
       return res.status(400).json({
-        error: 'username, name und password sind erforderlich'
+        error: 'Benutzername, Anzeigename und Passwort sind erforderlich'
       });
     }
 
@@ -22,7 +22,7 @@ router.post('/register', async (req, res) => {
     }
 
     const existing = await query(
-      'SELECT id FROM members WHERE lower(username)=lower($1)',
+      'SELECT id FROM members WHERE lower(username) = lower($1)',
       [username.trim()]
     );
 
@@ -36,10 +36,14 @@ router.post('/register', async (req, res) => {
 
     const result = await query(
       `INSERT INTO members
-        (username, name, password_hash)
+        (username, display_name, password_hash)
        VALUES ($1, $2, $3)
-       RETURNING id, username, name, rank, software_role, online, created_at`,
-      [username.trim(), name.trim(), hash]
+       RETURNING id, username, display_name, rank, software_role, online, created_at`,
+      [
+        username.trim(),
+        display_name.trim(),
+        hash
+      ]
     );
 
     const user = result.rows[0];
@@ -69,7 +73,7 @@ router.post('/login', async (req, res) => {
     }
 
     const result = await query(
-      'SELECT * FROM members WHERE lower(username)=lower($1)',
+      'SELECT * FROM members WHERE lower(username) = lower($1)',
       [username.trim()]
     );
 
@@ -93,14 +97,14 @@ router.post('/login', async (req, res) => {
     }
 
     await query(
-      'UPDATE members SET online=true WHERE id=$1',
+      'UPDATE members SET online = true, updated_at = NOW() WHERE id = $1',
       [row.id]
     );
 
     const user = {
       id: row.id,
       username: row.username,
-      name: row.name,
+      display_name: row.display_name,
       rank: row.rank,
       software_role: row.software_role,
       online: true
@@ -123,7 +127,7 @@ router.post('/login', async (req, res) => {
 router.post('/logout', authRequired, async (req, res) => {
   try {
     await query(
-      'UPDATE members SET online=false WHERE id=$1',
+      'UPDATE members SET online = false, updated_at = NOW() WHERE id = $1',
       [req.user.sub]
     );
 
