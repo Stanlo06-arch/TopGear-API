@@ -1,3 +1,5 @@
+console.log('AUTH ROUTE GELADEN');
+
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const { query } = require('../db');
